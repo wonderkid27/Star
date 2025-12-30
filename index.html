@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NOEL_V2</title>
+    <title>STAR</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Times New Roman', serif; }
         #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -111,7 +111,7 @@
 
     <!-- Webcam hidden structure -->
     <div id="webcam-wrapper">
-        <video id="webcam" autoplay muted playsinline style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;"></video>
+        <video id="webcam" autoplay playsinline style="display:none;"></video>
         <canvas id="webcam-preview"></canvas>
     </div>
 
@@ -494,28 +494,14 @@
                 const vision = await FilesetResolver.forVisionTasks(
                     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
                 );
-                // Tạo HandLandmarker: thử GPU trước, nếu lỗi thì fallback CPU (ổn định hơn trên một số máy/điện thoại)
-const createHandLandmarkerWithDelegate = async (delegate) => {
-    return await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            delegate
-        },
-        runningMode: "VIDEO",
-        numHands: 1
-    });
-};
-
-try {
-    handLandmarker = await createHandLandmarkerWithDelegate("GPU");
-} catch (eGPU) {
-    try {
-        handLandmarker = await createHandLandmarkerWithDelegate("CPU");
-    } catch (eCPU) {
-        throw eCPU;
-    }
-}
-
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
             } catch (err) {
                 STATE.camera.available = false;
                 STATE.camera.error = (err && err.name) ? err.name : String(err);
@@ -528,52 +514,12 @@ try {
             const canUseCamera = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             if (canUseCamera) {
                 try {
-                    // Ưu tiên camera TRƯỚC khi vào bằng điện thoại (facingMode: "user").
-// Trên desktop hoặc khi constraint không hỗ trợ, sẽ tự fallback sang camera bất kỳ.
-const ua = (navigator.userAgent || "");
-const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-
-const tryConstraints = [
-    // Mobile: ưu tiên camera trước + kích thước vừa phải
-    { audio: false, video: isMobile ? { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } } : { width: { ideal: 640 }, height: { ideal: 480 } } },
-    // Mobile: chỉ ưu tiên camera trước
-    { audio: false, video: isMobile ? { facingMode: { ideal: "user" } } : true },
-    // Fallback: bất kỳ camera + kích thước
-    { audio: false, video: { width: { ideal: 640 }, height: { ideal: 480 } } },
-    // Fallback cuối: bất kỳ camera
-    { audio: false, video: true },
-];
-
-let stream = null;
-let lastErr = null;
-for (const c of tryConstraints) {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia(c);
-        if (stream) break;
-    } catch (e) {
-        lastErr = e;
-    }
-}
-if (!stream) throw lastErr;
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     STATE.camera.available = true;
                     STATE.camera.error = null;
                     STATE.inputMode = 'HAND';
-
-// iOS/Safari: giúp video stream chạy ổn định hơn khi autoplay/playsinline
-try {
-    video.setAttribute('playsinline', '');
-    video.setAttribute('muted', '');
-    video.muted = true;
-    video.autoplay = true;
-} catch (_) {}
-
-video.srcObject = stream;
-
-// Bắt đầu loop detect sau khi video có dữ liệu (chỉ cần 1 lần)
-video.addEventListener("loadeddata", predictWebcam, { once: true });
-
-// Thử play (một số trình duyệt cần gọi rõ ràng; nếu bị chặn thì vẫn OK, loadeddata sẽ tự kích khi được phép)
-try { await video.play(); } catch (_) {}
+                    video.srcObject = stream;
+                    video.addEventListener("loadeddata", predictWebcam);
                 } catch (err) {
                     // Không lấy được camera (không có thiết bị / bị chặn quyền)
                     STATE.camera.available = false;
