@@ -131,6 +131,7 @@
                 champagneGold: 0xffd966, 
                 deepGreen: 0x03180a,     
                 accentRed: 0x990000,     
+                heart: 0xff2d55,
             },
             particles: {
                 count: 1500,     
@@ -161,7 +162,8 @@
         let particleSystem = []; 
         let photoMeshGroup = new THREE.Group();
         let handLandmarker, video, webcamCanvas, webcamCtx;
-        let caneTexture; 
+        let caneTexture;
+        let heartMat; 
 
         async function init() {
             initThree();
@@ -268,6 +270,8 @@
                 this.posHeart = new THREE.Vector3();
                 this.posScatter = new THREE.Vector3();
                 this.baseScale = mesh.scale.x; 
+                this.originalMaterial = mesh.material;
+                this._usingHeartMaterial = false; 
 
                 // Individual Spin Speed
                 // Photos spin slower to be readable
@@ -328,6 +332,18 @@
             }
 
             update(dt, mode, focusTargetMesh) {
+                // Material swap: HEART dùng 1 màu đồng nhất (tim), các mode khác trả về material gốc.
+                // Không áp dụng cho DUST/PHOTO.
+                const wantHeartMat = (mode === 'HEART') && !this.isDust && (this.type !== 'PHOTO');
+                if (wantHeartMat && !this._usingHeartMaterial) {
+                    if (heartMat) this.mesh.material = heartMat;
+                    this._usingHeartMaterial = true;
+                } else if (!wantHeartMat && this._usingHeartMaterial) {
+                    this.mesh.material = this.originalMaterial;
+                    this._usingHeartMaterial = false;
+                }
+
+
                 let target = this.posHeart;
                 
                 if (mode === 'SCATTER') target = this.posScatter;
@@ -409,7 +425,17 @@
                 emissive: 0x330000
             });
             
-            const candyMat = new THREE.MeshStandardMaterial({ map: caneTexture, roughness: 0.4 });
+                        // Material cho trái tim (màu đồng nhất khi mode === 'HEART')
+            heartMat = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.heart,
+                metalness: 0.25,
+                roughness: 0.35,
+                envMapIntensity: 2.0,
+                emissive: 0x220008,
+                emissiveIntensity: 0.55
+            });
+
+const candyMat = new THREE.MeshStandardMaterial({ map: caneTexture, roughness: 0.4 });
 
             for (let i = 0; i < CONFIG.particles.count; i++) {
                 const rand = Math.random();
