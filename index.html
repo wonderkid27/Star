@@ -106,7 +106,7 @@
     <div id="ui-layer">
         <h1></h1>
         
-        <div class="hint-text" id="hint-text">Rê chuột để xoay; click để đổi TREE/SCATTER; ESC để thoát FOCUS; nhấn 'H' để ẩn/hiện hướng dẫn.</div>
+        <div class="hint-text" id="hint-text">Rê chuột để xoay; click để đổi HEART/SCATTER; ESC để thoát FOCUS; nhấn 'H' để ẩn/hiện hướng dẫn.</div>
     </div>
 
     <!-- Webcam hidden structure -->
@@ -144,7 +144,7 @@
         };
 
         const STATE = {
-            mode: 'TREE', 
+            mode: 'HEART', 
             focusIndex: -1, 
             focusTarget: null,
             hand: { detected: false, x: 0, y: 0 },
@@ -265,7 +265,7 @@
                 this.type = type;
                 this.isDust = isDust;
                 
-                this.posTree = new THREE.Vector3();
+                this.posHeart = new THREE.Vector3();
                 this.posScatter = new THREE.Vector3();
                 this.baseScale = mesh.scale.x; 
 
@@ -283,17 +283,38 @@
             }
 
             calculatePositions() {
-                // TREE: Tight Spiral
-                const h = CONFIG.particles.treeHeight;
-                const halfH = h / 2;
-                let t = Math.random(); 
-                t = Math.pow(t, 0.8); 
-                const y = (t * h) - halfH;
-                let rMax = CONFIG.particles.treeRadius * (1.0 - t); 
-                if (rMax < 0.5) rMax = 0.5;
-                const angle = t * 50 * Math.PI + Math.random() * Math.PI; 
-                const r = rMax * (0.8 + Math.random() * 0.4); 
-                this.posTree.set(Math.cos(angle) * r, y, Math.sin(angle) * r);
+
+                // HEART: 2D heart curve (filled) + độ dày 3D theo trục Z
+                // Công thức tham số (t ∈ [0, 2π]):
+                //   x = 16 sin^3(t)
+                //   y = 13 cos(t) - 5 cos(2t) - 2 cos(3t) - cos(4t)
+                // (tham khảo Heart Curve - Wolfram MathWorld)
+                const t = Math.random() * Math.PI * 2;
+
+                const x0 = 16 * Math.pow(Math.sin(t), 3);
+                const y0 = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+
+                // Lấp đầy phần bên trong trái tim bằng cách co điểm biên về gốc (0,0)
+                const fill = Math.sqrt(Math.random()); // phân bố tương đối đều theo diện tích
+                let x = x0 * fill;
+                let y = y0 * fill;
+
+                // Scale theo tham số sẵn có (treeRadius / treeHeight) để giữ bố cục tổng thể
+                const sx = (CONFIG.particles.treeRadius / 16) * 1.8;
+                const sy = (CONFIG.particles.treeHeight / 22) * 0.85;
+                x *= sx;
+                y *= sy;
+
+                // Dịch lên theo trục Y để trái tim nằm giữa khung hình (công thức gốc bị lệch xuống)
+                const yOffset = 6 * sy;
+                y += yOffset;
+
+                // Độ dày theo Z: dày hơn ở gần tâm, mỏng dần ra mép
+                const baseThickness = CONFIG.particles.treeRadius * 0.9;
+                const thickness = baseThickness * (0.25 + 0.75 * (1.0 - fill));
+                const z = (Math.random() - 0.5) * thickness;
+
+                this.posHeart.set(x, y, z);
 
                 // SCATTER: 3D Sphere
                 let rScatter = this.isDust ? (12 + Math.random()*20) : (8 + Math.random()*12);
@@ -307,7 +328,7 @@
             }
 
             update(dt, mode, focusTargetMesh) {
-                let target = this.posTree;
+                let target = this.posHeart;
                 
                 if (mode === 'SCATTER') target = this.posScatter;
                 else if (mode === 'FOCUS') {
@@ -329,7 +350,7 @@
                     this.mesh.rotation.x += this.spinSpeed.x * dt;
                     this.mesh.rotation.y += this.spinSpeed.y * dt;
                     this.mesh.rotation.z += this.spinSpeed.z * dt; // Added Z for more natural tumble
-                } else if (mode === 'TREE') {
+                } else if (mode === 'HEART') {
                     // Reset rotations slowly
                     this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, dt);
                     this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, dt);
@@ -344,7 +365,7 @@
                 let s = this.baseScale;
                 if (this.isDust) {
                     s = this.baseScale * (0.8 + 0.4 * Math.sin(clock.elapsedTime * 4 + this.mesh.id));
-                    if (mode === 'TREE') s = 0; 
+                    if (mode === 'HEART') s = 0; 
                 } else if (mode === 'SCATTER' && this.type === 'PHOTO') {
                     // Large preview size in scatter
                     s = this.baseScale * 2.5; 
@@ -425,7 +446,7 @@
                 metalness: 1.0, roughness: 0
             });
             const star = new THREE.Mesh(starGeo, starMat);
-            star.position.set(0, CONFIG.particles.treeHeight/2 + 1.2, 0);
+            star.position.set(0, CONFIG.particles.treeHeight * 0.45 + 1.2, 0);
             mainGroup.add(star);
             
             mainGroup.add(photoMeshGroup);
@@ -507,7 +528,7 @@
                 STATE.camera.error = (err && err.name) ? err.name : String(err);
                 STATE.inputMode = 'MOUSE';
                 STATE.pointer.active = true;
-                setHint("Không tải được MediaPipe. Điều khiển bằng chuột: rê chuột để xoay, click để đổi TREE/SCATTER, double click để FOCUS. Nhấn 'H' để ẩn hướng dẫn.");
+                setHint("Không tải được MediaPipe. Điều khiển bằng chuột: rê chuột để xoay, click để đổi HEART/SCATTER, double click để FOCUS. Nhấn 'H' để ẩn hướng dẫn.");
                 return;
             }
 
@@ -526,7 +547,7 @@
                     STATE.camera.error = (err && err.name) ? err.name : String(err);
                     STATE.inputMode = 'MOUSE';
                     STATE.pointer.active = true;
-                    setHint("Không có camera / bị chặn quyền. Điều khiển bằng chuột: rê chuột để xoay, click để đổi TREE/SCATTER, double click để FOCUS. Nhấn 'H' để ẩn hướng dẫn.");
+                    setHint("Không có camera / bị chặn quyền. Điều khiển bằng chuột: rê chuột để xoay, click để đổi HEART/SCATTER, double click để FOCUS. Nhấn 'H' để ẩn hướng dẫn.");
                 }
             } else {
                 // Trình duyệt/thiết bị không hỗ trợ getUserMedia
@@ -534,7 +555,7 @@
                 STATE.camera.error = "getUserMedia_unavailable";
                 STATE.inputMode = 'MOUSE';
                 STATE.pointer.active = true;
-                setHint("Thiết bị không hỗ trợ camera. Điều khiển bằng chuột: rê chuột để xoay, click để đổi TREE/SCATTER, double click để FOCUS. Nhấn 'H' để ẩn hướng dẫn.");
+                setHint("Thiết bị không hỗ trợ camera. Điều khiển bằng chuột: rê chuột để xoay, click để đổi HEART/SCATTER, double click để FOCUS. Nhấn 'H' để ẩn hướng dẫn.");
             }
         }
 
@@ -571,7 +592,7 @@
                         if (photos.length) STATE.focusTarget = photos[Math.floor(Math.random()*photos.length)].mesh;
                     }
                 } else if (avgDist < 0.25) {
-                    STATE.mode = 'TREE';
+                    STATE.mode = 'HEART';
                     STATE.focusTarget = null;
                 } else if (avgDist > 0.4) {
                     STATE.mode = 'SCATTER';
@@ -601,11 +622,11 @@
                 if (STATE.inputMode === 'MOUSE') updatePointer(e);
             }, { passive: true });
 
-            // Click để đổi TREE <-> SCATTER (chỉ khi dùng chuột)
+            // Click để đổi HEART <-> SCATTER (chỉ khi dùng chuột)
             renderer.domElement.addEventListener('click', () => {
                 if (STATE.inputMode !== 'MOUSE') return;
-                if (STATE.mode === 'TREE') STATE.mode = 'SCATTER';
-                else if (STATE.mode === 'SCATTER') STATE.mode = 'TREE';
+                if (STATE.mode === 'HEART') STATE.mode = 'SCATTER';
+                else if (STATE.mode === 'SCATTER') STATE.mode = 'HEART';
                 else if (STATE.mode === 'FOCUS') { STATE.mode = 'SCATTER'; STATE.focusTarget = null; }
             });
 
@@ -648,16 +669,16 @@
                 const targetRotY = ix * Math.PI * 0.9;
                 const targetRotX = iy * Math.PI * 0.25;
 
-                const follow = (STATE.mode === 'TREE') ? 2.0 : 3.0;
+                const follow = (STATE.mode === 'HEART') ? 2.0 : 3.0;
                 STATE.rotation.y += (targetRotY - STATE.rotation.y) * follow * dt;
                 STATE.rotation.x += (targetRotX - STATE.rotation.x) * follow * dt;
 
-                // Giữ chút chuyển động "sống" ở TREE khi dùng chuột
-                if (STATE.inputMode === 'MOUSE' && STATE.mode === 'TREE') {
+                // Giữ chút chuyển động "sống" ở HEART khi dùng chuột
+                if (STATE.inputMode === 'MOUSE' && STATE.mode === 'HEART') {
                     STATE.rotation.y += 0.08 * dt;
                 }
             } else {
-                if (STATE.mode === 'TREE') {
+                if (STATE.mode === 'HEART') {
                     STATE.rotation.y += 0.3 * dt;
                     STATE.rotation.x += (0 - STATE.rotation.x) * 2.0 * dt;
                 } else {
