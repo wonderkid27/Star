@@ -466,15 +466,8 @@ const candyMat = new THREE.MeshStandardMaterial({ map: caneTexture, roughness: 0
                 particleSystem.push(new Particle(mesh, type, false));
             }
 
-            const starGeo = new THREE.OctahedronGeometry(1.2, 0);
-            const starMat = new THREE.MeshStandardMaterial({
-                color: 0xffdd88, emissive: 0xffaa00, emissiveIntensity: 1.0,
-                metalness: 1.0, roughness: 0
-            });
-            const star = new THREE.Mesh(starGeo, starMat);
-            star.position.set(0, CONFIG.particles.treeHeight * 0.45 + 1.2, 0);
-            mainGroup.add(star);
-            
+            // (ĐÃ BỎ) Biểu tượng màu vàng (star) để trái tim không bị che.
+
             mainGroup.add(photoMeshGroup);
         }
 
